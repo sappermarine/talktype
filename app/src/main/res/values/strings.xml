@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">TalkType</string>
+    <string name="service_label">TalkType dictation bubble</string>
+    <string name="service_description">Shows a floating mic bubble whenever the keyboard is open. Tap it to dictate; TalkType transcribes your speech and types it into the text field you are in. It reads the focused text field only to insert text at the cursor.</string>
+</resources>
