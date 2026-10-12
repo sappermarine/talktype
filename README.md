@@ -15,6 +15,8 @@ you are in. A personal alternative to Wispr Flow / VoiceInk, built for a Samsung
 - **Dictionary**: "heard -> meant" correction rules applied on every engine, plus an uncommon-words
   list used by the cloud engine and AI cleanup.
 - **History** of recent dictations, kept on the phone.
+- **VoiceInk import**: `tools/import_voiceink.py` copies VoiceInk's replacements and vocabulary from
+  the Mac to the phone over USB, adding only entries that are new.
 
 The API key is entered in the app and stored only in the app's private storage on the phone.
 
@@ -31,6 +33,9 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 Then in the app: allow the microphone, turn on "TalkType dictation bubble" under
 Settings > Accessibility > Installed apps, and download a model (or add an API key and pick Cloud).
 Reinstalling can switch the accessibility toggle off; turn it back on if the bubble disappears.
+
+On Samsung phones also tap Allow next to "Stay awake in the background". Without it the system
+freezes the app a few seconds after the bubble hides and the bubble stops appearing.
 
 ## Code map
 

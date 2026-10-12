@@ -13,6 +13,7 @@ import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.content.res.Configuration
 import android.graphics.PixelFormat
+import android.graphics.Point
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -60,11 +61,14 @@ class DictationService : AccessibilityService() {
     /** Bumped when a dictation is cancelled so its late result is ignored. */
     private var generation = 0
     private var refreshPending = false
+    private var dragging = false
+    private var lastVisibility = ""
     private var lastField: AccessibilityNodeInfo? = null
     private val refresh = Runnable {
         refreshPending = false
         updateVisibility()
     }
+    private val settle = Runnable { updateVisibility() }
     private val unloadModel = Runnable { scope.launch(Dispatchers.Default) { LocalTranscriber.unload() } }
 
     override fun onServiceConnected() {
@@ -80,6 +84,10 @@ class DictationService : AccessibilityService() {
         if (event?.eventType == AccessibilityEvent.TYPE_VIEW_FOCUSED || event?.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED) {
             event.source?.takeIf { it.isEditable }?.let { lastField = it }
         }
+        // The keyboard window can show up in the window list a beat after the last event about it,
+        // so look again once things have settled.
+        handler.removeCallbacks(settle)
+        handler.postDelayed(settle, 700)
         if (refreshPending) return
         refreshPending = true
         handler.postDelayed(refresh, 120)
@@ -89,10 +97,7 @@ class DictationService : AccessibilityService() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        bubble?.let {
-            clampToScreen()
-            wm.updateViewLayout(it, lp)
-        }
+        placeBubble()
     }
 
     override fun onDestroy() {
@@ -112,7 +117,6 @@ class DictationService : AccessibilityService() {
     @SuppressLint("ClickableViewAccessibility")
     private fun addBubble() {
         val size = dp(60)
-        val screen = resources.displayMetrics
         lp = WindowManager.LayoutParams(
             size, size,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
@@ -120,10 +124,8 @@ class DictationService : AccessibilityService() {
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = if (Prefs.bubbleX >= 0) Prefs.bubbleX else screen.widthPixels - size - dp(8)
-            y = if (Prefs.bubbleY >= 0) Prefs.bubbleY else (screen.heightPixels * 0.42f).toInt()
         }
-        clampToScreen()
+        placeBubble()
 
         val view = BubbleView(this)
         val slop = ViewConfiguration.get(this).scaledTouchSlop
@@ -131,7 +133,6 @@ class DictationService : AccessibilityService() {
         var downY = 0f
         var startX = 0
         var startY = 0
-        var dragging = false
         var longPressed = false
         val longPress = Runnable {
             longPressed = true
@@ -166,8 +167,15 @@ class DictationService : AccessibilityService() {
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     handler.removeCallbacks(longPress)
                     if (dragging) {
-                        Prefs.bubbleX = lp.x
-                        Prefs.bubbleY = lp.y
+                        dragging = false
+                        if (landscape()) {
+                            Prefs.bubbleLandX = lp.x
+                            Prefs.bubbleLandY = lp.y
+                        } else {
+                            Prefs.bubbleX = lp.x
+                            Prefs.bubbleY = lp.y
+                        }
+                        Log.i(TAG, "bubble: position saved ${lp.x},${lp.y} landscape=${landscape()}")
                     } else if (!longPressed && e.actionMasked == MotionEvent.ACTION_UP) {
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         onTap()
@@ -180,20 +188,54 @@ class DictationService : AccessibilityService() {
         bubble = view
     }
 
+    /** The real screen size right now. The service's own resources can lag behind a rotation. */
+    private fun screenSize(): Point =
+        if (Build.VERSION.SDK_INT >= 30) {
+            wm.maximumWindowMetrics.bounds.let { Point(it.width(), it.height()) }
+        } else {
+            resources.displayMetrics.let { Point(it.widthPixels, it.heightPixels) }
+        }
+
+    private fun landscape() = screenSize().let { it.x > it.y }
+
     private fun clampToScreen() {
-        val screen = resources.displayMetrics
-        lp.x = lp.x.coerceIn(0, max(0, screen.widthPixels - lp.width))
-        lp.y = lp.y.coerceIn(0, max(0, screen.heightPixels - lp.height))
+        val screen = screenSize()
+        lp.x = lp.x.coerceIn(0, max(0, screen.x - lp.width))
+        lp.y = lp.y.coerceIn(0, max(0, screen.y - lp.height))
     }
 
-    private fun keyboardOpen(): Boolean =
-        runCatching { windows.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD } }.getOrDefault(false)
+    /**
+     * Puts the bubble where the user last dragged it for this orientation. Always starts from the
+     * saved spot, so squeezing it onto a smaller screen (landscape) never overwrites that spot.
+     */
+    private fun placeBubble() {
+        if (dragging) return
+        val screen = screenSize()
+        val savedX = if (landscape()) Prefs.bubbleLandX else Prefs.bubbleX
+        val savedY = if (landscape()) Prefs.bubbleLandY else Prefs.bubbleY
+        val oldX = lp.x
+        val oldY = lp.y
+        lp.x = if (savedX >= 0) savedX else screen.x - lp.width - dp(8)
+        lp.y = if (savedY >= 0) savedY else (screen.y * 0.42f).toInt()
+        clampToScreen()
+        if (lp.x == oldX && lp.y == oldY) return
+        Log.i(TAG, "bubble: placed at ${lp.x},${lp.y} (was $oldX,$oldY) saved=$savedX,$savedY screen=${screen.x}x${screen.y}")
+        bubble?.let { wm.updateViewLayout(it, lp) }
+    }
 
     /** The bubble is shown while the keyboard is open, and always while a dictation is in flight. */
     private fun updateVisibility() {
         val view = bubble ?: return
         view.cloud = Prefs.engine == ENGINE_CLOUD
-        val show = view.state != BubbleView.State.IDLE || Prefs.bubbleAlways || keyboardOpen()
+        placeBubble()
+        val types = runCatching { windows.map { it.type } }.getOrElse { Log.w(TAG, "windows failed: $it"); emptyList() }
+        val keyboard = AccessibilityWindowInfo.TYPE_INPUT_METHOD in types
+        val show = view.state != BubbleView.State.IDLE || Prefs.bubbleAlways || keyboard
+        val summary = "show=$show keyboard=$keyboard windows=$types at=${lp.x},${lp.y}"
+        if (summary != lastVisibility) {
+            lastVisibility = summary
+            Log.i(TAG, "bubble: $summary app=${runCatching { rootInActiveWindow?.packageName }.getOrNull()}")
+        }
         view.visibility = if (show) View.VISIBLE else View.GONE
     }
 

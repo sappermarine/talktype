@@ -3,12 +3,15 @@ package app.talktype
 import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
+import org.json.JSONObject
+import java.io.File
 import kotlin.reflect.KProperty
 
 class TalkTypeApp : Application() {
     override fun onCreate() {
         super.onCreate()
         Prefs.init(this)
+        DictionaryImport.run(this)
         ModelStore.init(this)
         History.init(this)
     }
@@ -71,4 +74,47 @@ object Prefs {
     var pasteInsert by Bool("pasteInsert", false)
     var bubbleX by Num("bubbleX", -1)
     var bubbleY by Num("bubbleY", -1)
+    // Landscape has its own spot, so rotating never disturbs the portrait one.
+    var bubbleLandX by Num("bubbleLandX", -1)
+    var bubbleLandY by Num("bubbleLandY", -1)
+}
+
+/**
+ * Merges files/dictionary-import.json (pushed by tools/import_voiceink.py) into the dictionary and
+ * deletes it. Entries already present are left alone.
+ */
+object DictionaryImport {
+    fun run(ctx: Context) {
+        val file = File(ctx.filesDir, "dictionary-import.json")
+        if (!file.exists()) return
+        runCatching {
+            val json = JSONObject(file.readText())
+
+            val rules = StringBuilder(Prefs.replacements.trimEnd())
+            val known = Prefs.replacements.lines()
+                .mapNotNull { it.split("->", "=>", "=", limit = 2).takeIf { p -> p.size == 2 }?.get(0)?.trim()?.lowercase() }
+                .toMutableSet()
+            json.optJSONArray("replacements")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val heard = arr.getJSONArray(i).getString(0).trim()
+                    val meant = arr.getJSONArray(i).getString(1).trim()
+                    if (heard.isEmpty() || !known.add(heard.lowercase())) continue
+                    if (rules.isNotEmpty()) rules.append('\n')
+                    rules.append(heard).append(" -> ").append(meant)
+                }
+            }
+            Prefs.replacements = rules.toString()
+
+            val words = Prefs.vocabulary.split(',').map { it.trim() }.filter { it.isNotEmpty() }.toMutableList()
+            val seen = words.map { it.lowercase() }.toMutableSet()
+            json.optJSONArray("vocabulary")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val word = arr.getString(i).trim()
+                    if (word.isNotEmpty() && seen.add(word.lowercase())) words.add(word)
+                }
+            }
+            Prefs.vocabulary = words.joinToString(", ")
+        }
+        file.delete()
+    }
 }

@@ -10,7 +10,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.net.Uri
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -85,6 +87,10 @@ class MainActivity : ComponentActivity() {
 private fun Context.micGranted() =
     checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
+/** Samsung freezes idle background apps, which stops the bubble from noticing the keyboard. */
+private fun Context.staysAwake() =
+    getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
+
 private fun Context.bubbleEnabled(): Boolean {
     val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES).orEmpty()
     val mine = ComponentName(this, DictationService::class.java)
@@ -96,11 +102,13 @@ private fun App() {
     val ctx = LocalContext.current
     var mic by remember { mutableStateOf(ctx.micGranted()) }
     var bubble by remember { mutableStateOf(ctx.bubbleEnabled()) }
+    var awake by remember { mutableStateOf(ctx.staysAwake()) }
     var engine by remember { mutableStateOf(Prefs.engine) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         engine = Prefs.engine // may have been switched from the bubble
         mic = ctx.micGranted()
         bubble = ctx.bubbleEnabled()
+        awake = ctx.staysAwake()
     }
     val askPermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         mic = ctx.micGranted()
@@ -127,6 +135,12 @@ private fun App() {
                 StatusRow("Floating mic bubble", bubble, "Turn on") {
                     ctx.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                 }
+                StatusRow("Stay awake in the background", awake, "Allow") {
+                    ctx.startActivity(
+                        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${ctx.packageName}")),
+                    )
+                }
+                if (!awake) Hint("Without this the phone pauses TalkType after a few seconds and the bubble stops appearing.", warn = true)
                 if (!bubble) {
                     Hint("In Accessibility, open Installed apps, choose TalkType dictation bubble and switch it on.")
                 } else {
