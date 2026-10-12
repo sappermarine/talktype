@@ -1,5 +1,7 @@
 package app.talktype
 
+import android.os.SystemClock
+import android.util.Log
 import com.k2fsa.sherpa.onnx.FeatureConfig
 import com.k2fsa.sherpa.onnx.OfflineModelConfig
 import com.k2fsa.sherpa.onnx.OfflineRecognizer
@@ -134,12 +136,16 @@ object CloudClient {
                     .put(JSONObject().put("role", "system").put("content", system))
                     .put(JSONObject().put("role", "user").put("content", "<transcript>\n$text\n</transcript>")),
             )
+        // gpt-oss models "think" before answering; cleanup doesn't need it and it costs latency.
+        if ("gpt-oss" in Prefs.cleanupModel) payload.put("reasoning_effort", "low")
         val body = payload.toString().toRequestBody("application/json".toMediaType())
         val out = send(Request.Builder().url(url("/chat/completions")).post(body))
             .getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content")
         return out.replace(Regex("</?transcript>"), "").trim()
     }
 }
+
+private const val TAG = "TalkType"
 
 /** Recording -> text, using whichever engine is selected, plus optional AI cleanup. */
 object Pipeline {
@@ -160,6 +166,8 @@ object Pipeline {
     }
 
     fun run(pcm: ShortArray): Output {
+        val started = SystemClock.elapsedRealtime()
+        val audio = "%.1f".format(pcm.size / SAMPLE_RATE.toFloat())
         val raw = if (Prefs.engine == ENGINE_CLOUD) {
             CloudClient.transcribe(Pcm.toWav(pcm))
         } else {
@@ -167,11 +175,17 @@ object Pipeline {
             LocalTranscriber.transcribe(model, Pcm.toFloats(pcm))
         }
         val text = applyReplacements(tidy(raw))
-        if (text.isEmpty() || !Prefs.cleanup || !cloudReady) return Output(text)
+        val transcribed = SystemClock.elapsedRealtime()
+        if (text.isEmpty() || !Prefs.cleanup || !cloudReady) {
+            Log.i(TAG, "timing: audio=${audio}s engine=${Prefs.engine} transcribe=${transcribed - started}ms cleanup=off")
+            return Output(text)
+        }
         return try {
-            Output(applyReplacements(CloudClient.cleanup(text).ifBlank { text }))
+            val cleaned = CloudClient.cleanup(text).ifBlank { text }
+            Log.i(TAG, "timing: audio=${audio}s engine=${Prefs.engine} transcribe=${transcribed - started}ms cleanup=${SystemClock.elapsedRealtime() - transcribed}ms")
+            Output(applyReplacements(cleaned))
         } catch (e: Exception) {
-            android.util.Log.w("TalkType", "cleanup failed with model ${Prefs.cleanupModel}: ${e.message}")
+            Log.w(TAG, "cleanup failed with model ${Prefs.cleanupModel}: ${e.message}")
             Output(text, "AI cleanup failed: ${e.message}")
         }
     }

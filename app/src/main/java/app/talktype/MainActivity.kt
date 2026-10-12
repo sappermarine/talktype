@@ -197,7 +197,7 @@ private fun App() {
             Section("Dictionary") {
                 Hint("Fixes for things it keeps getting wrong, one per line, as: what it writes -> what you meant. Works with every engine.")
                 PrefField("Corrections", Prefs.replacements, singleLine = false) { Prefs.replacements = it }
-                Hint("Example:  seals and strikes -> Seals & Stripes")
+                Hint("Example:  cloud code -> Claude Code")
                 Hint("Uncommon names and terms, separated by commas. Helps the cloud engine and AI cleanup recognise them in the first place.")
                 PrefField("Uncommon words", Prefs.vocabulary, singleLine = false) { Prefs.vocabulary = it }
             }

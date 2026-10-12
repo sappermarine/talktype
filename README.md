@@ -20,17 +20,31 @@ you are in. A personal alternative to Wispr Flow / VoiceInk, built for a Samsung
 
 The API key is entered in the app and stored only in the app's private storage on the phone.
 
+## Install without building
+
+Download `talktype.apk` from the [latest release](https://github.com/sappermarine/talktype/releases/latest)
+on the phone and open it (Android will ask you to allow installs from your browser). It needs a
+64-bit Android phone running Android 9 or newer.
+
+Because it was not installed from an app store, Android blocks the accessibility switch at first:
+open Settings > Apps > TalkType, tap the three-dot menu and choose "Allow restricted settings".
+
+The release build is signed with a debug key. To install a build you compiled yourself over it,
+uninstall the release build first.
+
 ## Build and install
 
-Needs JDK 17 and the Android SDK (platform 35). `gradle.properties` points at Homebrew's
-`openjdk@17`; create `local.properties` with `sdk.dir=<path to Android SDK>`.
+Needs JDK 17 and the Android SDK (platform 35). Point `JAVA_HOME` at the JDK and create
+`local.properties` with `sdk.dir=<path to Android SDK>`.
 
 ```bash
 ./gradlew :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Then in the app: allow the microphone, turn on "TalkType dictation bubble" under
+## First-time setup
+
+In the app: allow the microphone, turn on "TalkType dictation bubble" under
 Settings > Accessibility > Installed apps, and download a model (or add an API key and pick Cloud).
 Reinstalling can switch the accessibility toggle off; turn it back on if the bubble disappears.
 
