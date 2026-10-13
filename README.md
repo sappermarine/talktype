@@ -12,6 +12,8 @@ you are in. A personal alternative to Wispr Flow / VoiceInk, built for a Samsung
 - **Cloud engine**: any OpenAI-compatible API. Defaults to Groq (`whisper-large-v3-turbo`).
 - **AI cleanup** (optional): an LLM removes filler words and fixes punctuation. Defaults to
   `openai/gpt-oss-120b` on Groq.
+- **Numbers as digits**: "twenty five" becomes 25, with handling for years, times, phone numbers
+  and decimals (`Numbers.kt`, covered by unit tests).
 - **Dictionary**: "heard -> meant" correction rules applied on every engine, plus an uncommon-words
   list used by the cloud engine and AI cleanup.
 - **History** of recent dictations, kept on the phone.

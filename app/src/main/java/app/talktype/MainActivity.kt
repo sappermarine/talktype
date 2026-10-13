@@ -194,6 +194,15 @@ private fun App() {
                 }
             }
 
+            Section("Formatting") {
+                var digits by remember { mutableStateOf(Prefs.digits) }
+                SwitchRow("Write numbers as digits", digits) {
+                    digits = it
+                    Prefs.digits = it
+                }
+                Hint("\"Twenty five\" becomes 25. Two numbers in a row keep the first as a word: two 12 inch pipes.")
+            }
+
             Section("Dictionary") {
                 Hint("Fixes for things it keeps getting wrong, one per line, as: what it writes -> what you meant. Works with every engine.")
                 PrefField("Corrections", Prefs.replacements, singleLine = false) { Prefs.replacements = it }

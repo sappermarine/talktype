@@ -174,7 +174,7 @@ object Pipeline {
             val model = ModelStore.active() ?: throw IOException("no speech model downloaded")
             LocalTranscriber.transcribe(model, Pcm.toFloats(pcm))
         }
-        val text = applyReplacements(tidy(raw))
+        val text = finish(tidy(raw))
         val transcribed = SystemClock.elapsedRealtime()
         if (text.isEmpty() || !Prefs.cleanup || !cloudReady) {
             Log.i(TAG, "timing: audio=${audio}s engine=${Prefs.engine} transcribe=${transcribed - started}ms cleanup=off")
@@ -183,12 +183,15 @@ object Pipeline {
         return try {
             val cleaned = CloudClient.cleanup(text).ifBlank { text }
             Log.i(TAG, "timing: audio=${audio}s engine=${Prefs.engine} transcribe=${transcribed - started}ms cleanup=${SystemClock.elapsedRealtime() - transcribed}ms")
-            Output(applyReplacements(cleaned))
+            Output(finish(cleaned))
         } catch (e: Exception) {
             Log.w(TAG, "cleanup failed with model ${Prefs.cleanupModel}: ${e.message}")
             Output(text, "AI cleanup failed: ${e.message}")
         }
     }
+
+    /** Local formatting applied to every transcript: digits for numbers, then the user's corrections. */
+    private fun finish(text: String) = applyReplacements(if (Prefs.digits) Numbers.toDigits(text) else text)
 
     /**
      * Applies the user's "heard -> meant" rules: whole words or phrases, ignoring case. Runs on

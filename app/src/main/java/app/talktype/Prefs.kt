@@ -69,6 +69,7 @@ object Prefs {
     var vocabulary by Str("vocabulary", "")
     /** One rule per line: "what it hears -> what you meant". */
     var replacements by Str("replacements", "")
+    var digits by Bool("digits", true)
 
     var bubbleAlways by Bool("bubbleAlways", false)
     var pasteInsert by Bool("pasteInsert", false)
