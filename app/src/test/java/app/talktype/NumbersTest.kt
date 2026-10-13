@@ -9,9 +9,9 @@ class NumbersTest {
     @Test fun basics() {
         check("I have two kids and twenty five chickens.", "I have 2 kids and 25 chickens.")
         check("Twelve people came", "12 people came")
-        check("it costs three hundred and five dollars", "it costs 305 dollars")
+        check("it costs three hundred and five dollars", "it costs \$305")
         check("about one hundred fifty thousand", "about 150,000")
-        check("twenty-five percent", "25 percent")
+        check("twenty-five percent", "25%")
         check("two thousand twenty six", "2026")
         check("a hundred times", "100 times")
         check("nineteen hundred", "1900")
@@ -54,13 +54,25 @@ class NumbersTest {
         check("this one is good", "this one is good")
         check("no one came", "no one came")
         check("one of them", "one of them")
-        check("one percent", "1 percent")
+        check("one percent", "1%")
         check("page one", "page 1")
         check("one or two days", "1 or 2 days")
         check("one, two, three", "1, 2, 3")
         check("five to one", "5 to 1")
         check("one hundred", "100")
         check("twenty one", "21")
+    }
+
+    @Test fun symbols() {
+        check("up ten percent from 40 percent", "up 10% from 40%")
+        check("three point five percent", "3.5%")
+        check("a hundred percent", "100%")
+        check("one dollar", "\$1")
+        check("five million dollars", "\$5,000,000")
+        check("five dollars and fifty cents", "\$5.50")
+        check("twelve dollars and five cents", "\$12.05")
+        check("a few dollars and fifty cents", "a few dollars and 50 cents")
+        check("two twelve dollar items", "two \$12 items")
     }
 
     @Test fun leavesOrdinaryWordsAlone() {

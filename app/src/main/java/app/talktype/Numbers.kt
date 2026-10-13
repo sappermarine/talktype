@@ -2,7 +2,8 @@ package app.talktype
 
 /**
  * Rewrites spelled-out numbers as digits: "twenty five" -> "25", "three point five" -> "3.5",
- * "five five five one two one two" -> "5551212", "twenty twenty six" -> "2026".
+ * "five five five one two one two" -> "5551212", "twenty twenty six" -> "2026", "ten percent" -> "10%",
+ * "fifty dollars" -> "$50".
  *
  * Two different numbers said back to back keep the first as a word ("two twelve inch pipes" ->
  * "two 12 inch pipes"), which is the usual style rule. A lone "one" stays a word unless it is
@@ -92,7 +93,19 @@ object Numbers {
             out.append(render(t, group))
             i = group.last().end
         }
-        return out.toString()
+        return symbols(out.toString())
+    }
+
+    private const val AMOUNT = """(\d[\d,]*(?:\.\d+)?)"""
+    private val PERCENT = Regex("""$AMOUNT\s+percent\b""", RegexOption.IGNORE_CASE)
+    private val DOLLARS_CENTS = Regex("""(\d[\d,]*)\s+dollars?\s+and\s+(\d{1,2})\s+cents?\b""", RegexOption.IGNORE_CASE)
+    private val DOLLARS = Regex("""$AMOUNT\s+dollars?\b""", RegexOption.IGNORE_CASE)
+
+    /** "25 percent" -> "25%", "305 dollars" -> "$305", "5 dollars and 50 cents" -> "$5.50". */
+    private fun symbols(text: String): String {
+        var s = PERCENT.replace(text) { it.groupValues[1] + "%" }
+        s = DOLLARS_CENTS.replace(s) { "$" + it.groupValues[1] + "." + it.groupValues[2].padStart(2, '0') }
+        return DOLLARS.replace(s) { "$" + it.groupValues[1] }
     }
 
     private fun isWord(s: String) = s[0].isLetter()

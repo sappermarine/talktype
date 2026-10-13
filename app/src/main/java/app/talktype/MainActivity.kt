@@ -200,7 +200,7 @@ private fun App() {
                     digits = it
                     Prefs.digits = it
                 }
-                Hint("\"Twenty five\" becomes 25. Two numbers in a row keep the first as a word: two 12 inch pipes.")
+                Hint("\"Twenty five\" becomes 25, \"ten percent\" 10% and \"fifty dollars\" \$50. Two numbers in a row keep the first as a word: two 12 inch pipes.")
             }
 
             Section("Dictionary") {
